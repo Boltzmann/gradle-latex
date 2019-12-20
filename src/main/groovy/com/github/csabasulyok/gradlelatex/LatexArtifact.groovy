@@ -20,20 +20,38 @@ class LatexArtifact {
   String name
   
   /**
+   * Name of artifact used for auxiliary files. Same as name,
+   * but does not contain whitespaces, folder changes, etc.
+   */
+  String nameNoPath
+  
+  /**
    * Represents tex file which is used to call bibtex, pdflatex
    * Must be set.
    */
   File tex
   
   /**
-   * Represents bib file used to call bibtex.
+   * Represents bib file used to call bibtex/biber.
    */
   File bib
+  
+  /**
+   * Command string to generate bbl file from bib.
+   * By default 'bibtex', but 'biber' may be used instead. 
+   */
+  String bibCommand
   
   /**
    * Represents output pdf file.
    */
   File pdf
+  
+  /**
+   * Command string to generate PDF file.
+   * By default 'pdflatex', but 'xelatex' may be used instead.
+   */
+  String pdfCommand
   
   /**
    * Collection of dependencies which have to be compiled
@@ -60,4 +78,11 @@ class LatexArtifact {
    * Extra arguments to be passed to pdflatex when building this artifact.
    */
   String extraArgs
+  
+  @Override
+  String toString() {
+    "LatexArtifact [name=" + name + ", nameNoPath=" + nameNoPath + ", tex=" + tex + ", bib=" + bib + ", bibCommand=" + bibCommand +
+        ", pdf=" + pdf + ", pdfCommand=" + pdfCommand + ", dependsOn=" + dependsOn + ", img=" + img + ", aux=" + aux +
+        ", extraArgs=" + extraArgs + "]"
+  }
 }
