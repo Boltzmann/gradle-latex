@@ -1,6 +1,7 @@
 package com.github.csabasulyok.gradlelatex
 
 import org.gradle.api.Project
+import org.gradle.api.tasks.Copy
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -97,40 +98,53 @@ class LatexExtension {
     
     // name = TeX file name without extension
     String name = args.tex.take(args.tex.lastIndexOf('.'))
+    // nameNoPath = name without whitespaces, / and ..
+    String nameNoPath = name.replaceAll('[/ ]', '_')
     
-    objs[name] = new LatexArtifact()
-    objs[name].name = name
-    objs[name].tex = p.file(args.tex)
+    LatexArtifact obj = new LatexArtifact()
+    obj.name = name
+    obj.nameNoPath = nameNoPath
+    obj.tex = p.file(args.tex)
     
     // PDF either given, or same as TeX file with different extension
-    objs[name].pdf = p.file(args.pdf ?: "${name}.pdf")
+    obj.pdf = p.file(args.pdf ?: "${name}.pdf")
+    // command to create PDF, by default "pdflatex"
+    obj.pdfCommand = args.pdfCommand ?: 'pdflatex'
     // bib file optional
-    objs[name].bib = args.bib ? p.file(args.bib) : null
+    obj.bib = args.bib ? p.file(args.bib) : null
+    // bib command - optional, by default "bibtex"
+    obj.bibCommand = args.bibCommand ?: 'bibtex'
     
     // build dependencies
     // find already existing LatexArtifact instances instead of holding just names
-    objs[name].dependsOn = args.dependsOn.collect { dep -> objs[dep.take(dep.lastIndexOf('.'))] }
+    obj.dependsOn = args.dependsOn.collect { dep -> objs[dep.take(dep.lastIndexOf('.')).replaceAll('[/ ]', '_')] }
     
     // assign image files/dirs as a FileCollection Gradle can watch
-    objs[name].img = args.img ? utils.findImgFiles(args.img) : null
+    obj.img = args.img ? utils.findImgFiles(args.img) : null
     // assign auxiliary files as aFileCollection Gradle can watch
-    objs[name].aux = args.aux ? p.files(args.aux) : null
+    obj.aux = args.aux ? p.files(args.aux) : null
     // extra args optional
-    objs[name].extraArgs = args.extraArgs ?: ''
+    obj.extraArgs = args.extraArgs ?: ''
     
     LOG.info "Added builder for TeX file $args.tex"
     
     // dynamically wire new tasks into workflow
-    addPdfLatexTask(objs[name])
-    addCleanLatexTask(objs[name])
+    addPdfLatexTask(obj)
+    addCleanLatexTask(obj)
     if (args.bib) {
-      addBibTexTask(objs[name])
+      addBibTexTask(obj)
     }
     if (args.img) {
-      addInkscapeTask(objs[name])
+      addInkscapeTask(obj)
+    }
+    if (args.aux) {
+      addCopyAuxTask(obj)
     }
     
-    objs[name]
+    // save artifact
+    objs[nameNoPath] = obj
+    
+    obj
   }
   
   //==============================================
@@ -148,15 +162,15 @@ class LatexExtension {
    * @param obj The basis artifact of the new task. 
    */
   private void addPdfLatexTask(LatexArtifact obj) {
-    LOG.info "Dynamically adding task 'pdfLatex.${obj.name}'"
+    LOG.info "Dynamically adding task 'pdfLatex.${obj.nameNoPath}'"
     
     // create new task and set its properties using the artifact
-    PdfLatexTask pdfLatexTask = p.task("pdfLatex.${obj.name}", type: PdfLatexTask, overwrite: true)
+    PdfLatexTask pdfLatexTask = p.task("pdfLatex.${obj.nameNoPath}", type: PdfLatexTask, overwrite: true)
     pdfLatexTask.setObj(obj)
     
     // add dependency to all already existing pdfLatex tasks of dependent artifacts
     obj.dependsOn.each { depObj ->
-      PdfLatexTask depPdfLatexTask = p.tasks["pdfLatex.${depObj.name}"]
+      PdfLatexTask depPdfLatexTask = p.tasks["pdfLatex.${depObj.nameNoPath}"]
       pdfLatexTask.dependsOn depPdfLatexTask
     }
     
@@ -175,10 +189,10 @@ class LatexExtension {
    * @param obj The basis artifact of the new task.
    */
   private void addCleanLatexTask(LatexArtifact obj) {
-    LOG.info "Dynamically adding task 'cleanLatex.${obj.name}'"
+    LOG.info "Dynamically adding task 'cleanLatex.${obj.nameNoPath}'"
     
     // create new task and set its properties using the artifact
-    CleanLatexTask cleanLatexTask = p.task("cleanLatex.${obj.name}", type: CleanLatexTask, overwrite: true)
+    CleanLatexTask cleanLatexTask = p.task("cleanLatex.${obj.nameNoPath}", type: CleanLatexTask, overwrite: true)
     cleanLatexTask.setObj(obj)
     
     // add new task as dependency of main task
@@ -196,14 +210,39 @@ class LatexExtension {
    * @param obj The basis artifact of the new task.
    */
   private void addBibTexTask(LatexArtifact obj) {
-    LOG.info "Dynamically adding task 'bibTex.${obj.name}'"
+    LOG.info "Dynamically adding task 'bibTex.${obj.nameNoPath}'"
     
     // create new task and set its properties using the artifact
-    BibTexTask bibTexTask = p.task("bibTex.${obj.name}", type: BibTexTask, overwrite: true)
+    BibTexTask bibTexTask = p.task("bibTex.${obj.nameNoPath}", type: BibTexTask, overwrite: true)
     bibTexTask.setObj(obj)
     
     // add new task as dependency of associated pdfLatex task
-    p.tasks["pdfLatex.${obj.name}"].dependsOn bibTexTask
+    p.tasks["pdfLatex.${obj.nameNoPath}"].dependsOn bibTexTask
+  }
+
+  /**
+   * Wire new copyAux task into workflow based on a LatexArtifact.
+   * The task copies the aux files into the temp folder.
+   *
+   * The new task is then inserted as a dependency of the associated "pdfLatex.texfile" task.
+   *
+   * @param obj The basis artifact of the new task.
+   */
+  private void addCopyAuxTask(LatexArtifact obj) {
+    LOG.info "Dynamically adding task 'copyAux.${obj.name}'"
+
+    // create new task and set its properties using the artifact
+    Copy copyAuxTask = p.task("copyAux.${obj.name}", type: Copy, overwrite: true) {
+      from obj.aux
+      into p.latex.auxDir
+    }
+
+    // add new task as dependency of associated pdfLatex task
+    p.tasks["pdfLatex.${obj.name}"].dependsOn copyAuxTask
+    // copy must run before bibtex, so also add it before that
+    if (p.tasks.findByName("bibTex.${obj.name}")) {
+      p.tasks["bibTex.${obj.name}"].dependsOn copyAuxTask
+    }
   }
   
   /**
@@ -217,13 +256,18 @@ class LatexExtension {
    * @param obj The basis artifact of the new task.
    */
   private void addInkscapeTask(LatexArtifact obj) {
-    LOG.info "Dynamically adding task 'inkscape.${obj.name}'"
+    LOG.info "Dynamically adding task 'inkscape.${obj.nameNoPath}'"
     
     // create new task and set its properties using the artifact
-    InkscapeTask inkscapeTask = p.task("inkscape.${obj.name}", type: InkscapeTask, overwrite: true)
+    InkscapeTask inkscapeTask = p.task("inkscape.${obj.nameNoPath}", type: InkscapeTask, overwrite: true)
     inkscapeTask.setObj(obj)
     
     // add new task as dependency of associated pdfLatex task
-    p.tasks["pdfLatex.${obj.name}"].dependsOn inkscapeTask
+    p.tasks["pdfLatex.${obj.nameNoPath}"].dependsOn inkscapeTask
+    // if a bibtex task exists, add new task as dependency
+    if (p.tasks.findByPath("bibTex.${obj.nameNoPath}")) {
+      LOG.info "Making sure inkscape is called before bibtex"
+      p.tasks["bibTex.${obj.nameNoPath}"].dependsOn inkscapeTask
+    }
   }
 }
