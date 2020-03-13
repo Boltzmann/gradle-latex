@@ -15,8 +15,8 @@ It offers the following:
 Requirements
 ------------
 - LaTeX compiler: `pdflatex` and `bibtex` on `PATH` (tested using [MikTeX](https://miktex.org/) on Windows and [TeXLive](https://www.tug.org/texlive/) on Linux)
-- Java version 1.8+
-- Gradle 2.0+
+- Java version 9 
+- Gradle 4.x
 - if using automatic image conversion, also `inkscape` on `PATH`
 
 
