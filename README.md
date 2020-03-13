@@ -1,6 +1,6 @@
 Gradle LaTeX plugin
 ===================
-[![Build Status](https://travis-ci.org/csabasulyok/gradle-latex.svg?branch=master)](https://travis-ci.org/csabasulyok/gradle-latex)
+[![Build Status](https://travis-ci.org/boltzmann/gradle-latex.svg?branch=master)](https://travis-ci.org/boltzmann/gradle-latex)
 [![Waffle.io - Issues in progress](https://badge.waffle.io/csabasulyok/gradle-latex.png?label=in%20progress&title=In%20Progress)](https://waffle.io/csabasulyok/gradle-latex?utm_source=badge)
 [![Stable version](https://maven-badges.herokuapp.com/maven-central/com.github.csabasulyok/gradle-latex/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.csabasulyok/gradle-latex)
 
